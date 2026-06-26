@@ -1,0 +1,36 @@
+#version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.arvancloud.ir/elasticsearch:8.12.0
+    container_name: ir-project-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - elastic
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data:rw
+
+  kibana:
+    image: docker.arvancloud.ir/kibana:8.12.0
+    container_name: ir-project-kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_HOSTS=http://ir-project-elasticsearch:9200
+      # no auth needed
+    ports:
+      - "5601:5601"
+    networks:
+      - elastic
+
+networks:
+  elastic:
+    driver: bridge
+
+volumes:
+  elastic-data:
