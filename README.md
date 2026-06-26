@@ -1,59 +1,43 @@
-# سامانه خزنده وب و موتور جستجوی متون فارسی
+# Web Crawler & Search Engine
 
-این پروژه یک سیستم کامل جستجوی متون فارسی است که از دو بخش اصلی تشکیل شده است: یک خزنده وب (Web Crawler) برای جمع‌آوری داده‌ها از وب‌سایت‌های فارسی و یک موتور جستجو (Search Engine) مبتنی بر Elasticsearch و الگوریتم‌های بازیابی اطلاعات برای ایندکس و رتبه‌بندی صفحات.
-
----
-
-## ۱. معماری خزنده (Crawler Architecture)
-
-خزنده این پروژه بر اساس یک معماری ماژولار و مبتنی بر اجزای تفکیک‌شده طراحی شده است:
-
-* **مدیریت صف (`URLfrontier.py`):** این ماژول وظیفه مدیریت آدرس‌های وب (URL) را بر عهده دارد. با استفاده از یک ساختار داده‌ای مناسب، از بررسی مجدد لینک‌های تکراری جلوگیری کرده و ترتیب اولویت خزش صفحات را مدیریت می‌کند.
-* **دانلودکننده صفحات (`HTMLdownloader.py`):** وظیفه ارسال درخواست‌های HTTP به وب‌سایت‌ها، مدیریت خطاهای شبکه (مانند Timeout یا خطاهای وضعیت سرور) و دریافت محتوای خام HTML را دارد.
-* **هماهنگ‌کننده اصلی (`Crawler.py`):** به عنوان هسته مرکزی فرآیند خزش عمل می‌کند. این ماژول آدرس‌ها را از Frontier تحویل می‌گیرد، به Downloader می‌دهد و پس از دریافت HTML، فرآیند پارس و استخراج لینک‌های جدید برای افزودن به Frontier را هدایت می‌کند تا به سقف خزش مشخص‌شده برسد.
+A modular Persian information retrieval system consisting of a focused web crawler and a search engine powered by Elasticsearch 8.x and a custom Jaccard similarity re-ranking pipeline.
 
 ---
 
-## ۲. روش استخراج داده (Data Extraction Method)
-
-استخراج داده‌های ساختاریافته از صفحات HTML خام توسط ماژول `ContentParser.py` انجام می‌شود:
-
-* **پارس ساختار وب:** با استفاده از کتابخانه BeautifulSoup، تگ‌های معنایی متن مانند عنوان اصلی (`<h1>`)، بدنه متن (`<p>`)، تاریخ انتشار و دسته‌بندی موضوعی شناسایی و استخراج می‌شوند.
-* **پاک‌سازی محتوا:** بخش‌های زائد صفحه وب شامل کدهای جاوا اسکریپت، استایل‌های CSS، منوهای ناوبری، هدر و فوتر سایت که تاثیری در محتوای اصلی مقاله ندارند، کاملاً حذف می‌شوند تا داده‌ای تمیز برای مرحله ایندکس‌گذاری آماده شود.
-
----
-
-## ۳. نحوه ایندکس‌گذاری (Indexing Method)
-
-برای ذخیره‌سازی و بازیابی سریع اطلاعات، از پایگاه‌داده توزیع‌شده **Elasticsearch 8.x** استفاده شده است. فرآیند ایندکس‌گذاری به شرح زیر است:
-
-* **پیش‌پردازش زبان طبیعی (`PersianPrep.py`):** متون استخراج‌شده قبل از ورود به دیتابیس، توسط کتابخانه Hazm پردازش می‌شوند. این فرآیند شامل نرمال‌سازی کلمات (اصلاح نیم‌فاصله‌ها و یکسان‌سازی حروف ک و ی)، توکنایز کردن متن، حذف کلمات توقف (Stop words) و ریشه‌یابی کلمات (Stemming) است.
-* **ذخیره‌سازی دوگانه:** هر سند در قالب دو ساختار داده‌ای ذخیره می‌شود:
-    1. **داده‌های خام (`title` و `text`):** متن اصلی و بدون تغییر مقاله جهت نمایش تمیز در خروجی ترمینال و ساخت بخش بریده متن (Snippet).
-    2. **داده‌های پردازش‌شده (`processed_title` و `processed_text`):** متون ریشه‌یابی و نرمال‌شده توسط Hazm که صرفاً برای عملیات جستجو و تطابق کلمات استفاده می‌شوند.
+## 1. Crawler Architecture & Data Extraction
+The system utilizes a clean, separated architecture to safely fetch and clean web data:
+* **`URLfrontier.py`:** Manages the URL queue, prioritizing unvisited links and preventing duplicate crawling.
+* **`HTMLdownloader.py`:** Handles network operations, executing HTTP requests and capturing raw HTML safely.
+* **`ContentParser.py`:** Leverages BeautifulSoup to extract semantic tags (`<h1>`, `<p>`, date, category) while removing boilerplate layout noise (scripts, CSS, navs).
+* **`Crawler.py`:** Coordinates the workflow, fetching URLs from the frontier, passing them to the downloader, and feeding extracted links back to the frontier.
 
 ---
 
-## ۴. الگوریتم رتبه‌بندی (Ranking Algorithm)
+## 2. Preprocessing & Indexing Method
+To deal with the complexities of the Persian language, texts are normalized before entering **Elasticsearch 8.x**:
+* **`PersianPrep.py`:** Uses the Hazm NLP library to normalize letters (e.g., standardizing character spacing and unifying Arabic/Persian glyph variations), tokenize words, remove stop words, and perform stemming/lemmatization.
+* **Dual-Field Indexing:** Documents are indexed with both raw fields (`title`, `text`) for user-facing terminal outputs/snippets, and cleaned fields (`processed_title`, `processed_text`) dedicated strictly to exact text matching.
 
-سیستم رتبه‌بندی از یک فرآیند دو مرحله‌ای برای ترکیب سرعت Elasticsearch و دقت محاسبات محلی استفاده می‌کند:
+---
 
-* **مرحله اول (فیلترینگ سریع):** ابتدا کوئری ورودی کاربر توسط `PersianPrep` پردازش شده و یک جستجوی Boolean در فیلدهای پردازش‌شده Elasticsearch انجام می‌شود تا حداکثر $1000$ سند برتر که بیشترین شباهت اولیه را دارند استخراج شوند.
-* **مرحله دوم (محاسبه شباهت جاکارد):** روی مستندات کاندید، مجموعه توکن‌های کوئری ($Q$) و توکن‌های سند ($D$) مقایسه شده و شاخص شباهت جاکارد بر اساس فرمول زیر محاسبه می‌شود:
+## 3. Ranking Algorithm
+The engine employs a highly efficient two-stage retrieval and re-ranking approach:
+
+1.  **Phase 1 (Elasticsearch Candidate Retrieval):** Evaluates the user query against the processed fields using a fast boolean match query, yielding up to the top $1000$ most relevant candidate documents.
+2.  **Phase 2 (Local Jaccard Re-ranking):** Computes the strict Jaccard Similarity index between the query token set ($Q$) and the document token set ($D$):
 
 $$J(Q, D) = \frac{|Q \cap D|}{|Q \cup D|}$$
 
-* **اعمال ضریب وزنی عنوان (Title Boosting):** برای اهمیت بیشتر کلمات موجود در عنوان نسبت به متن، امتیاز جاکارد عنوان در ضریب $10.0$ ضرب می‌شود. فرمول نهایی رتبه‌بندی به شکل زیر است:
+3.  **Title Boosting:** To ensure that keyword matches in headings heavily outweigh matches in body text, the title's score is multiplied by $10.0$:
 
 $$\text{Final Score} = (J_{\text{title}} \times 10.0) + J_{\text{text}}$$
 
-* **مدیریت نتایج برتر:** سیستم با استفاده از ساختار داده‌ای باکت کمترین (Min-Heap) از طریق ماژول `heapq` پایتون، در هر لحظه فقط $K$ سند برتر را در حافظه نگه داشته و در نهایت نتایج را به ترتیب نزولی امتیاز به کاربر نمایش می‌دهد.
+The top matches are continuously tracked using a Min-Heap (`heapq`), guaranteeing that only the top $K$ results are returned in descending order.
 
 ---
 
-## ۵. چند نمونه Query و نتایج حاصل
-
-موتور جستجو بر اساس محدودیت پروژه برای کوئری‌های تک‌کلمه‌ای و دوکلمه‌ای بهینه‌سازی شده است. نمونه‌ای از اجرای سیستم در محیط ترمینال:
+## 4. Sample Queries & Terminal Output
+The terminal interface supports one-word and two-word queries:
 
 ```text
 Search: هوش مصنوعی
@@ -64,10 +48,4 @@ Found 2 matches:
 URL: [https://example.com/ai-article](https://example.com/ai-article)
 Score: 10.1425
 Snippet: ...بررسی الگوریتم‌های هوش مصنوعی و شبکه‌های عصبی عمیق در صنایع مختلف...
-----------------------------------------
-
-[2] آینده تکنولوژی در قرن جدید
-URL: [https://example.com/tech-future](https://example.com/tech-future)
-Score: 0.0213
-Snippet: ...توسعه ابزارهای مدرن و ورود هوش به ساختار گجت‌های خانگی باعث آسایش...
 ----------------------------------------
